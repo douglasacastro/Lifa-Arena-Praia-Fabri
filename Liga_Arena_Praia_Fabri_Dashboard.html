@@ -161,6 +161,9 @@ header.topbar{
   display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;
 }
 .topbar-right{display:flex; align-items:center; gap:12px;}
+.nav-wrap{min-width:0;}
+.nav-track{display:none; height:4px; margin:7px 14px 0; background:rgba(255,255,255,0.1); border-radius:4px; position:relative; overflow:hidden;}
+.nav-thumb{position:absolute; top:0; left:0; height:100%; width:50%; background:linear-gradient(90deg,var(--fire-1),var(--fire-3)); border-radius:4px;}
 .brand{display:flex; align-items:center; gap:14px;}
 .brand-logo{width:52px; height:52px; object-fit:contain; filter:drop-shadow(0 6px 16px rgba(255,120,30,0.35));}
 .brand-text{display:flex; flex-direction:column; line-height:1.05;}
@@ -432,7 +435,12 @@ tbody tr td:last-child{border-right:1px solid var(--row-hairline); border-radius
 }
 @media (max-width:640px){
   .topbar-inner{justify-content:center;}
-  nav.tabs{overflow-x:auto; max-width:100%;}
+  .topbar-right{width:100%; min-width:0;}
+  .nav-wrap{flex:1 1 auto; min-width:0;}
+  nav.tabs{overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; scrollbar-width:none;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  .nav-track{display:block;}
+  .tab-btn{flex-shrink:0; scroll-snap-align:center;}
   .kpi-grid{grid-template-columns:1fr;}
   .cat-podium-grid{grid-template-columns:1fr;}
   .podium{grid-template-columns:1fr; gap:12px;}
@@ -549,7 +557,7 @@ tbody tr td:last-child{border-right:1px solid var(--row-hairline); border-radius
       </div>
     </div>
     <div class="topbar-right">
-      <nav class="tabs" id="mainTabs"></nav>
+      <div class="nav-wrap"><nav class="tabs" id="mainTabs"></nav><div class="nav-track" id="navTrack"><div class="nav-thumb" id="navThumb"></div></div></div>
       <button id="themeToggle" class="theme-toggle" onclick="toggleTheme()" aria-label="Alternar entre modo claro e escuro" title="Alternar tema claro/escuro">
         <span class="theme-toggle-icon" id="themeToggleIcon"></span>
       </button>
@@ -607,15 +615,42 @@ let state = { tab:'capa', cat: CATEGORIAS[0] };
 /* ---------------- TABS ---------------- */
 const TAB_DEFS = [
   {key:'capa', label:'Visão Geral'},
-  ...ETAPAS.map((e,i)=>({key:e, label:`${i+1}ª Etapa`})),
   {key:'geral', label:'Geral (Soma)'},
+  ...ETAPAS.map((e,i)=>({key:e, label:`${i+1}ª Etapa`})),
 ];
+function updateNavThumb(){
+  const nav = document.getElementById('mainTabs'), track = document.getElementById('navTrack'), thumb = document.getElementById('navThumb');
+  if(!nav || !track || !thumb) return;
+  const overflow = nav.scrollWidth - nav.clientWidth;
+  if(overflow <= 1){ track.style.visibility = 'hidden'; return; }
+  track.style.visibility = 'visible';
+  const ratio = nav.clientWidth / nav.scrollWidth;
+  const tw = track.clientWidth;
+  const w = Math.max(28, tw * ratio);
+  thumb.style.width = w + 'px';
+  thumb.style.left = ((tw - w) * (nav.scrollLeft / overflow)) + 'px';
+}
+function bindNavScroll(nav){
+  if(!nav._navBound){
+    nav.addEventListener('scroll', updateNavThumb, {passive:true});
+    window.addEventListener('resize', updateNavThumb);
+    nav._navBound = true;
+  }
+  updateNavThumb();
+}
 function renderTabs(){
   const nav = document.getElementById('mainTabs');
   nav.innerHTML = TAB_DEFS.map(t => `<button class="tab-btn ${state.tab===t.key?'active':''}" data-tab="${t.key}">${t.label}</button>`).join('');
   nav.querySelectorAll('.tab-btn').forEach(b=>{
     b.addEventListener('click', ()=>{ state.tab = b.dataset.tab; render(); });
   });
+  bindNavScroll(nav);
+  // mantém a aba ativa visível/centralizada na barra rolável (celular)
+  const act = nav.querySelector('.tab-btn.active');
+  if(act && nav.scrollWidth > nav.clientWidth){
+    nav.scrollLeft = act.offsetLeft - (nav.clientWidth - act.offsetWidth)/2;
+  }
+  updateNavThumb();
 }
 
 /* ---------------- MAIN RENDER ---------------- */
